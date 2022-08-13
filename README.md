@@ -359,7 +359,7 @@ headerNames - array of header names ['content-type', 'accept']
 Get the current request headers.
 
 
-<br><br>
+
 ## AddOns
 Additional libraries.
 
@@ -389,6 +389,6 @@ const fja = async () => {
 fja();
 ```
 
-<br>
+
 ### License
 The software licensed under [AGPL-3](LICENSE).
