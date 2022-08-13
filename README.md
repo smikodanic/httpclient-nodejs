@@ -366,7 +366,7 @@ Additional libraries.
 
 #### RobotsTxt
 ```
-const { HttpClient, RobotsTxt } = require('../../index.js');
+const { HttpClient, RobotsTxt } = require('httpclient-nodejs');
 
 const robotsTxt = new RobotsTxt(HttpClient);
 
