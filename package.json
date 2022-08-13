@@ -1,0 +1,20 @@
+{
+  "name": "httpclient-nodejs",
+  "version": "1.0.0",
+  "title": "HTTP Client - NodeJS",
+  "description": "Simple but powerful HTTP client for NodeJS.",
+  "keywords": [
+    "http client",
+    "node",
+    "nodejs",
+    "json"
+  ],
+  "author": "Saša Mikodanić",
+  "license": "AGPL-3.0",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:smikodanic/httpclient-nodejs.git"
+  },
+  "dependencies": {}
+}
