@@ -3,7 +3,7 @@
  * $ node 31askJSON_POST.js https://jsonplaceholder.typicode.com/posts "{\"x\": 78}"
  * Example shows how to proceed body as a string in JSON format.
  */
-const HttpClient = require('../index.js');
+const HttpClient = require('../HttpClient.js');
 const url = process.argv[2];
 const body_str = process.argv[3]; // this is String
 console.log('asked url:: POST', url);

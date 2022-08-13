@@ -2,7 +2,7 @@
  * $ node 05setHeaders.js
  */
 
-const HttpClient = require('../index.js');
+const HttpClient = require('../HttpClient.js');
 const httpClient = new HttpClient();
 
 // default headers

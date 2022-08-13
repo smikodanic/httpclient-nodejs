@@ -28,7 +28,7 @@ $ npm install --save httplient-node
 ## Example
 ```js
 /*** NodeJS script ***/
-const HttpClient = require('httpclient-nodejs');
+const { HttpClient } = require('httpclient-nodejs');
 
 const getUrl = async () => {
   try {
@@ -359,5 +359,36 @@ headerNames - array of header names ['content-type', 'accept']
 Get the current request headers.
 
 
+<br><br>
+## AddOns
+Additional libraries.
+
+
+#### RobotsTxt
+```
+const { HttpClient, RobotsTxt } = require('../../index.js');
+
+const robotsTxt = new RobotsTxt(HttpClient);
+
+const fja = async () => {
+  const url = 'https://www.yahoo.com/lifestyle/mom-makes-upsetting-discovery-walmart-134505752.html';
+  const robotsText = await robotsTxt.fetch(url);
+  console.log('robotsText::');
+  console.log(robotsText);
+
+  const robotsTextObj = robotsTxt.parse(robotsText);
+  console.log('robotsTextObj::', robotsTextObj);
+
+  const follow_urls = robotsTxt.whatToFollow(robotsTextObj, '*');
+  console.log('follow_urls::', follow_urls);
+
+  const unfollow_urls = robotsTxt.whatToUnfollow(robotsTextObj, '*');
+  console.log('unfollow_urls::', unfollow_urls);
+};
+
+fja();
+```
+
+<br>
 ### License
 The software licensed under [AGPL-3](LICENSE).

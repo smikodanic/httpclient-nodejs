@@ -3,7 +3,7 @@
  * $ node 30askJSON_GET.js https://jsonplaceholder.typicode.com/posts/1
  */
 const util = require('util');
-const HttpClient = require('../index.js');
+const HttpClient = require('../HttpClient.js');
 const url = process.argv[2];
 console.log('asked url:: GET', url);
 

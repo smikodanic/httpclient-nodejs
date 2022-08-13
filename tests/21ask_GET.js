@@ -2,7 +2,7 @@
  * $ node 21ask_GET.js <url>
  */
 const util = require('util');
-const HttpClient = require('../index.js');
+const HttpClient = require('../HttpClient.js');
 const url = process.argv[2];
 
 console.log('asked url:: GET', url);
