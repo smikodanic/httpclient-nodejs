@@ -43,7 +43,7 @@ const getUrl = async () => {
     const answers = await hcn.ask(url);
 
     console.log('answers:: ');
-    console.log(util.inspect(answers, false, 3, true));
+    console.log(util.inspect(answers.map(a => { a.res.content = a.res.content ? a.res.content.length : 0; return a; }), false, 3, true));
 
   } catch (err) {
     throw err;

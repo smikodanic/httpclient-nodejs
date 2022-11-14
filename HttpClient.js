@@ -11,8 +11,8 @@ const pkg_json = require('./package.json');
 class HttpClient {
 
   /**
-   * @param {Object} opts - HTTP Client options {encodeURI, timeout, retry, retryDelay, maxRedirects, headers}
-   * @param {Object} proxyAgent - proxy agent (https://www.npmjs.com/package/https-proxy-agent)
+   * @param {object} opts - HTTP Client options {encodeURI, timeout, retry, retryDelay, maxRedirects, headers}
+   * @param {object} proxyAgent - proxy agent (https://www.npmjs.com/package/https-proxy-agent)
    */
   constructor(opts, proxyAgent) {
     this.url;
@@ -21,8 +21,9 @@ class HttpClient {
     this.port = 80;
     this.pathname = '/';
     this.queryString = '';
+    this.queryObject = {};
 
-    if (!opts) {
+    if (!opts || (!!opts && !Object.keys(opts).length)) {
       this.opts = {
         debug: false, // show debug messages
         encodeURI: false,
@@ -44,6 +45,21 @@ class HttpClient {
       };
     } else {
       this.opts = opts;
+      this.opts.encoding = this.opts.encoding || 'utf8';
+      this.opts.timeout = this.opts.timeout || 8000;
+      this.opts.retry = this.opts.retry || 3;
+      this.opts.retryDelay = this.opts.retryDelay || 5500;
+      this.opts.maxRedirects = this.opts.maxRedirects || 3;
+      this.opts.headers = this.opts.headers || {
+        'authorization': '',
+        'user-agent': `HttpClient-NodeJS/${pkg_json.version} https://github.com/smikodanic/httpclient-nodejs`, // 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'
+        'accept': '*/*', // 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9'
+        'cache-control': 'no-cache',
+        'host': '',
+        'accept-encoding': 'gzip',
+        'connection': 'close', // keep-alive
+        'content-type': 'text/html; charset=UTF-8'
+      };
     }
 
     // default request headers
@@ -59,7 +75,7 @@ class HttpClient {
 
   /**
    * Parse url.
-   * @param {String} url - http://www.adsuu.com/some/thing.php?x=2&y=3
+   * @param {string} url - http://www.adsuu.com/some/thing.php?x=2&y=3
    */
   _parseUrl(url) {
     url = this._correctUrl(url);
@@ -70,15 +86,17 @@ class HttpClient {
     this.port = urlObj.port;
     this.pathname = urlObj.pathname;
     this.queryString = urlObj.search;
+    this.queryObject = urlObj.searchParams;
 
     // debug
     if (this.opts.debug) {
-      console.log('this.url:: ', this.url); // http://localhost:8001/www/products?category=databases
+      console.log('this.url:: ', this.url); // http://localhost:8001/www/products?category=mačke
       console.log('this.protocol:: ', this.protocol); // http:
       console.log('this.hostname:: ', this.hostname); // localhost
       console.log('this.port:: ', this.port); // 8001
       console.log('this.pathname:: ', this.pathname); // /www/products
-      console.log('this.queryString:: ', this.queryString); // ?category=databases
+      console.log('this.queryString:: ', this.queryString); // ?category=mačke
+      console.log('this.queryObject:: ', this.queryObject); // { 'category' => 'mačke' }
     }
 
     return url;
@@ -114,7 +132,7 @@ class HttpClient {
   /**
    * Convert string into integer, float or boolean.
    * @param {string} value
-   * @returns {string | number | boolean | object}
+   * @returns {string|number|boolean|object}
    */
   _typeConvertor(value) {
     function isJSON(str) {
@@ -154,8 +172,9 @@ class HttpClient {
       value = eqParts[1];
 
       value = this._typeConvertor(value); // t y p e   c o n v e r s i o n
+      value = !this.opts.encodeURI ? decodeURI(value) : value;
 
-      queryObject[property] = value;
+      if (!!property) { queryObject[property] = value; }
     });
 
     return queryObject;
@@ -212,9 +231,7 @@ class HttpClient {
    * @return formatted error
    */
   _formatError(error, url) {
-    // console.log(error);
     const err = new Error(error);
-
 
     // reformatting NodeJS errors
     if (error.code === 'ENOTFOUND') {
@@ -270,9 +287,9 @@ class HttpClient {
    * Sending one HTTP request to HTTP server.
    *  - 301 redirections are not handled.
    *  - retries are not handled
-   * @param {String} url - https://www.adsuu.com/contact
-   * @param {String} method - GET, POST, PUT, DELETE, PATCH
-   * @param {Object} body_obj - http body payload
+   * @param {string} url - https://www.adsuu.com/contact
+   * @param {string} method - GET, POST, PUT, DELETE, PATCH
+   * @param {object} body_obj - http body payload
    */
   askOnce(url, method = 'GET', body_obj) {
     // answer (response object)
@@ -336,21 +353,26 @@ class HttpClient {
       method,
       headers: this.headers
     };
-    const clientRequest = requestLib(requestOpts);
 
+    let clientRequest;
+    if (/GET/i.test(method)) {  // GET  - no body
+      clientRequest = requestLib(requestOpts);
 
-    /*** 2) add body to HTTP request ***/
-    if (!!body_obj && !/GET/i.test(method)) {
+    } else { // POST, PUT, DELETE, ... - with body
       answer.req.payload = body_obj;
+
       const body_str = JSON.stringify(body_obj);
-      const contentLength = Buffer.byteLength(body_str, 'utf-8');
+      const contentLength = Buffer.byteLength(body_str, this.opts.encoding);
       this.headers['content-length'] = contentLength;
-      clientRequest.write(body_str);
+      requestOpts.headers['content-length'] = contentLength;
+
+      clientRequest = requestLib(requestOpts);
+      clientRequest.write(body_str, this.opts.encoding);
     }
 
 
-    const promise = new Promise((resolve, reject) => {
 
+    const promise = new Promise((resolve, reject) => {
       /*** 3.A) successful response ***/
       clientRequest.on('response', res => {
         // collect raw data e.g. buffer data
@@ -463,9 +485,9 @@ class HttpClient {
    * Sending HTTP request to HTTP server.
    *  - 301 redirections are handled.
    *  - retries are handled
-   * @param {String} url - https://www.adsuu.com/contact
-   * @param {String} method - GET, POST, PUT, DELETE, PATCH
-   * @param {Object} body_obj - http body
+   * @param {string} url - https://www.adsuu.com/contact
+   * @param {string} method - GET, POST, PUT, DELETE, PATCH
+   * @param {object} body_obj - http body
    */
   async ask(url, method = 'GET', body_obj) {
 
@@ -480,7 +502,7 @@ class HttpClient {
       const from = url;
       const to = answer.res.headers.location || '';
       const url_new = url_node.resolve(from, to); // redirected URL is in 'location' header
-      console.log(`#${redirectCounter} redirection ${answer.status} from ${this.url} to ${url_new}`);
+      this.opts.debug && console.log(`#${redirectCounter} redirection ${answer.status} from ${this.url} to ${url_new}`);
 
       answer = await this.askOnce(url_new, method, body_obj); // repeat request with new url
       answers.push(answer);
@@ -494,7 +516,7 @@ class HttpClient {
     let retryCounter = 1;
 
     while (answer.status === 408 && retryCounter <= this.opts.retry) {
-      console.log(`#${retryCounter} retry due to timeout (${this.opts.timeout}) on ${url}`);
+      this.opts.debug && console.log(`#${retryCounter} retry due to timeout (${this.opts.timeout}) on ${url}`);
       await new Promise(resolve => setTimeout(resolve, this.opts.retryDelay)); // delay before retrial
 
       answer = await this.askOnce(url, method, body_obj);
@@ -514,9 +536,9 @@ class HttpClient {
 
   /**
    *
-   * @param {String} url - https://api.adsuu.com/contact
-   * @param {String} method - GET, POST, PUT, DELETE, PATCH
-   * @param {Object|String} body - http body as Object or String type
+   * @param {string} url - https://api.adsuu.com/contact
+   * @param {string} method - GET, POST, PUT, DELETE, PATCH
+   * @param {object|string} body - http body as Object or String type
    */
   async askJSON(url, method = 'GET', body) {
 
@@ -528,6 +550,8 @@ class HttpClient {
       } catch (err) {
         throw new Error('Body string is not valid JSON.');
       }
+    } else if (body === undefined || body === '') { // undefined or empty string
+      body_obj = {};
     }
 
     // JSON request headers
@@ -544,37 +568,39 @@ class HttpClient {
 
 
   /********** HEADERS *********/
-
   /**
    * Change header object.
    * Previously defined this.headers properties will be overwritten.
-   * @param {Object} headerObj - {'authorization', 'user-agent', accept, 'cache-control', 'host', 'accept-encoding', 'connection'}
+   * @param {object} headerObj - {'authorization', 'user-agent', 'accept', 'cache-control', 'host', 'accept-encoding', 'connection'}
    */
   setHeaders(headerObj) {
     this.headers = Object.assign(this.headers, headerObj);
+    this._lowercaseHeaders();
   }
 
   /**
    * Set (add/update) header.
    * Previously defined header will be overwritten.
-   * @param {String} headerName - 'content-type'
-   * @param {String} headerValue - 'text/html; charset=UTF-8'
+   * @param {string} headerName - 'content-type' or 'Content-Type'
+   * @param {string} headerValue - 'text/html; charset=UTF-8'
    */
   setHeader(headerName, headerValue) {
-    const headerObj = { [headerName]: headerValue };
-    this.headers = Object.assign(this.headers, headerObj);
+    const headername = headerName.toLowerCase();
+    this.headers[headername] = headerValue;
+    this._lowercaseHeaders();
   }
 
   /**
    * Delete header object.
-   * @param {Array} headerNames - array of header names    ['content-type', 'accept']
+   * @param {array} headerNames - array of header names    ['content-type', 'accept']
    */
   delHeaders(headerNames) {
+    this._lowercaseHeaders();
     headerNames.forEach(headerName => {
-      delete this.headers[headerName];
+      if (!headerName) { return; }
+      delete this.headers[headerName.toLowerCase()];
     });
   }
-
 
   /**
    * Get active headers
@@ -583,13 +609,17 @@ class HttpClient {
     return this.headers;
   }
 
-
-
-
-
-
-
-
+  /**
+   * Set all header property names to lower case. Content-Type -> content-type
+   */
+  _lowercaseHeaders() {
+    const headersCloned = { ...this.headers };
+    this.headers = {};
+    Object.keys(headersCloned).forEach(headerProp => {
+      const headerprop = headerProp.toLowerCase();
+      this.headers[headerprop] = headersCloned[headerProp];
+    });
+  }
 
 
 

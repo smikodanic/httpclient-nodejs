@@ -9,7 +9,7 @@ const url = process.argv[2];
 console.log('url:: ', url);
 
 const opts = {
-  encodeURI: false
+  encodeURI: false // if true => ads.com?x=č -> http://ads.com?x=%C4%8D
 };
 
 const httpClient = new HttpClient(opts);
