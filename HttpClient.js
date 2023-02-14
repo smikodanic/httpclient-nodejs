@@ -108,6 +108,7 @@ class HttpClient {
    */
   _correctUrl(url) {
     if (!url) { throw new Error('URL is not defined'); }
+    if (typeof url !== 'string') { throw new Error('URL is not string data type'); }
 
     // 1. trim from left and right
     url = url.trim();
