@@ -375,10 +375,10 @@ class HttpClient {
 
     const promise = new Promise((resolve, reject) => {
       /*** 3.A) successful response ***/
-      clientRequest.on('response', res => {
+      clientRequest.on('response', clientResponse => {
         // collect raw data e.g. buffer data
         const buf_chunks = [];
-        res.on('data', (buf_chunk) => {
+        clientResponse.on('data', (buf_chunk) => {
           buf_chunks.push(buf_chunk);
         });
 
@@ -390,7 +390,7 @@ class HttpClient {
           // decompress
           let gzip = false;
           let gunziped = buf;
-          if (!!res.headers['content-encoding'] && res.headers['content-encoding'] === 'gzip') {
+          if (!!clientResponse.headers['content-encoding'] && clientResponse.headers['content-encoding'] === 'gzip') {
             try {
               gunziped = zlib.gunzipSync(buf);
             } catch (err) {
@@ -411,11 +411,11 @@ class HttpClient {
 
           // format answer
           const ans = { ...answer }; // clone object to prevent overwrite of object properies once promise is resolved
-          ans.status = res.statusCode; // 2xx -ok response, 4xx -client error (bad request), 5xx -server error
-          ans.statusMessage = res.statusMessage;
-          ans.httpVersion = res.httpVersion;
+          ans.status = clientResponse.statusCode; // 2xx -ok response, 4xx -client error (bad request), 5xx -server error
+          ans.statusMessage = clientResponse.statusMessage;
+          ans.httpVersion = clientResponse.httpVersion;
           ans.gzip = gzip;
-          ans.res.headers = res.headers;
+          ans.res.headers = clientResponse.headers;
           ans.res.content = content;
           ans.time.res = this._getTime();
           ans.time.duration = this._getTimeDiff(ans.time.req, ans.time.res);
@@ -426,7 +426,7 @@ class HttpClient {
 
 
         // when server sends normal response
-        res.on('end', resolveAnswer);
+        clientResponse.on('end', resolveAnswer);
 
         // when server sends HTTP header Connection: 'keep-alive' the res.on('end', ...) is never fired
         setTimeout(resolveAnswer, this.opts.timeout);
@@ -474,9 +474,7 @@ class HttpClient {
     clientRequest.end();
 
 
-
     return promise;
-
 
   } // \askOnce
 
@@ -491,14 +489,12 @@ class HttpClient {
    * @param {object} body_obj - http body
    */
   async ask(url, method = 'GET', body_obj) {
-
     let answer = await this.askOnce(url, method, body_obj);
     const answers = [answer];
 
 
     /*** a) HANDLE 3XX REDIRECTS */
     let redirectCounter = 1;
-
     while (!!answer && /^3\d{2}/.test(answer.status) && redirectCounter <= this.opts.maxRedirects) { // 300, 301, 302, ...
       const from = url;
       const to = answer.res.headers.location || '';
@@ -512,10 +508,8 @@ class HttpClient {
     }
 
 
-
     /*** b) HANDLE RETRIES when status = 408 timeout */
     let retryCounter = 1;
-
     while (answer.status === 408 && retryCounter <= this.opts.retry) {
       this.opts.debug && console.log(`#${retryCounter} retry due to timeout (${this.opts.timeout}) on ${url}`);
       await new Promise(resolve => setTimeout(resolve, this.opts.retryDelay)); // delay before retrial
@@ -523,10 +517,8 @@ class HttpClient {
       answer = await this.askOnce(url, method, body_obj);
       answers.push(answer);
 
-
       retryCounter++;
     }
-
 
 
     return answers;
@@ -536,13 +528,12 @@ class HttpClient {
 
 
   /**
-   *
+   * Send request and get response in JSON format. Suitable for API.
    * @param {string} url - https://api.adsuu.com/contact
    * @param {string} method - GET, POST, PUT, DELETE, PATCH
    * @param {object|string} body - http body as Object or String type
    */
   async askJSON(url, method = 'GET', body) {
-
     // convert body string to object
     let body_obj = body;
     if (typeof body === 'string') {
@@ -563,6 +554,67 @@ class HttpClient {
 
     const answer = await this.askOnce(url, method, body_obj);
     return answer;
+  }
+
+
+
+
+  /**
+   * Get request and response streams which can be used for piping. For example: clientResponse.pipe(file)
+   * @param {string} url - https://www.dex8.com
+   * @param {string} method - GET, POST, PUT, DELETE, PATCH
+   * @param {object} body_obj - http body payload (when foer example the POST method is used)
+   * @returns {Promise<{clientrequest:Stream, clientResponse:Stream}>}
+   */
+  grabStreams(url, method = 'GET', body_obj) {
+    url = this._parseUrl(url);
+    const agent = this._hireAgent(this.opts);
+    const requestLib = this._selectRequest();
+
+    /*** 1) init HTTP request ***/
+    const requestOpts = {
+      agent,
+      hostname: this.hostname,
+      port: this.port,
+      path: this.pathname + this.queryString,
+      method,
+      headers: this.headers
+    };
+
+    let clientRequest;
+    if (/GET/i.test(method)) {  // GET  - no body
+      clientRequest = requestLib(requestOpts);
+
+    } else { // POST, PUT, DELETE, ... - with body
+      const body_str = JSON.stringify(body_obj);
+      const contentLength = Buffer.byteLength(body_str, this.opts.encoding);
+      this.headers['content-length'] = contentLength;
+      requestOpts.headers['content-length'] = contentLength;
+
+      clientRequest = requestLib(requestOpts);
+      clientRequest.write(body_str, this.opts.encoding);
+    }
+
+    const promise = new Promise((resolve, reject) => {
+      clientRequest.on('response', clientResponse => {
+        resolve({ clientRequest, clientResponse });
+      });
+
+      clientRequest.setTimeout(this.opts.timeout);
+      clientRequest.on('timeout', () => {
+        this._killAgent(agent);
+        reject(new Error(`The timeout after ${this.opts.timeout} ms`));
+      });
+
+      clientRequest.on('error', error => {
+        this._killAgent(agent);
+        reject(error);
+      });
+
+      clientRequest.end();
+    });
+
+    return promise;
   }
 
 

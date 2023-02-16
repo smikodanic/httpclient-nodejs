@@ -339,6 +339,11 @@ JSON answer:
 ```
 
 
+#### grabStreams(url, method = 'GET', body)
+Get request and response streams which can be used for piping. For example: clientResponse.pipe(file)
+*hcn.grabStreams('http://www.dex8.com');*
+
+
 #### setHeaders(headerObj)
 Change request header object. Previously defined "this.headers" properties will be overwritten.
 headerObj - {'authorization', 'user-agent', accept, 'cache-control', 'host', 'accept-encoding', 'connection'}

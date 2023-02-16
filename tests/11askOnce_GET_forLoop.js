@@ -1,5 +1,5 @@
 /**
- * $ node 10askOnce_GET.js
+ * $ node 11askOnce_GET_forLoop.js
  */
 const util = require('util');
 const HttpClient = require('../HttpClient.js');
