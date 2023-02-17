@@ -39,7 +39,6 @@ proxyServer.on('request', async (proxyServer_req, proxyServer_res) => {
     retryDelay: 5500,
     maxRedirects: 0,
     headers,
-    nodejsObjects: true, // REQUIRED to be true
     debug: false
   };
   const hcn = new HttpClient(opts);
