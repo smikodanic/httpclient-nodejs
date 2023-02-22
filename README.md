@@ -33,7 +33,6 @@ const { HttpClient } = require('httpclient-nodejs');
 const getUrl = async () => {
   try {
     const opts = {
-      debug: false,
       encodeURI: false,
       encoding: 'utf8',
       timeout: 3000,
@@ -49,7 +48,8 @@ const getUrl = async () => {
         'accept-encoding': 'gzip',
         'connection': 'close', // keep-alive
         'content-type': 'text/html; charset=UTF-8'
-      }
+      },
+      debug: false
     };
 
     const hcn = new HttpClient(opts); // http client instance

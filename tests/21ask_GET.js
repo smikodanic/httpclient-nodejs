@@ -12,6 +12,7 @@ const getUrl = async () => {
 
   const opts = {
     encodeURI: false,
+    encoding: 'utf8',
     timeout: 8000,
     retry: 3,
     retryDelay: 5500,
@@ -25,7 +26,8 @@ const getUrl = async () => {
       'accept-encoding': 'gzip',
       'connection': 'close', // keep-alive
       'content-type': 'text/html; charset=UTF-8'
-    }
+    },
+    debug: false
   };
 
 

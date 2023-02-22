@@ -11,7 +11,6 @@ console.log('asked url:: POST', url);
 
 const getJSON = async () => {
   const opts = {
-    debug: false,
     encodeURI: false,
     encoding: 'utf8',
     timeout: 3000,
@@ -27,7 +26,8 @@ const getJSON = async () => {
       'accept-encoding': 'gzip',
       'connection': 'close', // keep-alive
       'content-type': 'text/html; charset=UTF-8'
-    }
+    },
+    debug: false
   };
 
   try {
