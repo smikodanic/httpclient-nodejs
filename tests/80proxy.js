@@ -2,15 +2,15 @@
  * Pure proxy server with streams.
  * BROWSER --> PROXY --> ORIGHOST
  * $ node 80proxy.js
- * Then open in the browser: http://loachost:1111
+ * Then open in the browser: http://localhost:1111
  */
 const http = require('http');
 const https = require('https');
 const stream = require('stream');
 
 const port = 1111;
-const baseURL = 'http://www.adsuu.com';
-// const baseURL = 'https://www.dex8.com';
+// const baseURL = 'http://www.adsuu.com';
+const baseURL = 'https://www.dex8.com';
 // const baseURL = 'https://mikosoft.info/';
 // const baseURL = 'http://mikosoft.info/';
 // const baseURL = 'https://www.google.com';

@@ -2,7 +2,7 @@
  * Proxy server with used grabStreams() method.
  * BROWSER --> PROXY --> ORIGHOST
  * $ node 81proxy_grabStreams.js
- * Then open in the browser: http://loachost:22222
+ * Then open in the browser: http://localhost:2222
  */
 const HttpClient = require('../HttpClient.js');
 const http = require('http');

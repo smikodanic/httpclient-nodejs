@@ -293,8 +293,8 @@ class HttpClient {
    * @param {object} body_obj - http body payload
    */
   askOnce(url, method = 'GET', body_obj) {
-    // answer (response object)
-    const answer = {
+    // answer proto object
+    const answer_proto = {
       requestURL: url,
       requestMethod: method,
       status: 0,
@@ -306,7 +306,7 @@ class HttpClient {
       // referrerPolicy: // TODO
       req: {
         query: {},
-        headers: this.headers,
+        headers: undefined,
         payload: undefined
       },
       res: {
@@ -321,60 +321,58 @@ class HttpClient {
     };
 
 
-    // check and correct URL
-    try {
-      url = this._parseUrl(url);
-      answer.requestURL = url;
-      answer.https = /^https/.test(this.protocol);
-      answer.req.query = this._toQueryObject(this.queryString); // from ?a=sasa&b=2 => {a:'sasa', b:2}
-    } catch (err) {
-      // if URL is not properly defined
-      const ans = { ...answer }; // clone object to prevent overwrite of object properies once promise is resolved
-      ans.status = 400; // client error - Bad Request
-      ans.statusMessage = err.message || 'Bad Request';
-      ans.time.res = this._getTime();
-      ans.time.duration = this._getTimeDiff(ans.time.req, ans.time.res);
-
-      return ans; // send answer and stop further execution
-    }
-
-
     const agent = this._hireAgent(this.opts);
     const requestLib = this._selectRequest();
 
 
+    /*** 1) check and correct URL ***/
+    try {
+      url = this._parseUrl(url);
+    } catch (err) {
+      const answer = { ...answer_proto }; // clone object to prevent overwrite of object properies once promise is resolved
+      answer.status = 400; // client error - Bad Request
+      answer.statusMessage = err.message || 'Bad URL definition';
+      answer.time.res = this._getTime();
+      answer.time.duration = this._getTimeDiff(answer.time.req, answer.time.res);
+      return answer; // send answer and stop further execution
+    }
 
-    /*** 1) init HTTP request ***/
-    // http.request() options https://nodejs.org/api/http.html#http_http_request_url_options_callback
-    const requestOpts = {
-      agent,
-      hostname: this.hostname,
-      port: this.port,
-      path: this.pathname + this.queryString,
-      method,
-      headers: this.headers
-    };
 
+    /*** 2) init HTTP request  [http.request() options https://nodejs.org/api/http.html#http_http_request_url_options_callback] ***/
     let clientRequest;
     if (/GET/i.test(method)) {  // GET  - no body
+      this.delHeaders(['content-length']);
+      const requestOpts = {
+        agent,
+        hostname: this.hostname,
+        port: this.port,
+        path: this.pathname + this.queryString,
+        method,
+        headers: this.headers
+      };
       clientRequest = requestLib(requestOpts);
 
     } else { // POST, PUT, DELETE, ... - with body
-      answer.req.payload = body_obj;
-
       const body_str = JSON.stringify(body_obj);
       const contentLength = Buffer.byteLength(body_str, this.opts.encoding);
-      this.headers['content-length'] = contentLength;
-      requestOpts.headers['content-length'] = contentLength;
-
+      this.setHeader('content-length', contentLength);
+      const requestOpts = {
+        agent,
+        hostname: this.hostname,
+        port: this.port,
+        path: this.pathname + this.queryString,
+        method,
+        headers: this.headers
+      };
       clientRequest = requestLib(requestOpts);
       clientRequest.write(body_str, this.opts.encoding);
     }
 
 
-
+    /*** 3) send request ***/
     const promise = new Promise((resolve, reject) => {
-      /*** 3.A) successful response ***/
+
+      /** 3.A) successful response **/
       clientRequest.on('response', clientResponse => {
         // collect raw data e.g. buffer data
         const buf_chunks = [];
@@ -410,16 +408,21 @@ class HttpClient {
           } catch (err) { }
 
           // format answer
-          const ans = { ...answer }; // clone object to prevent overwrite of object properies once promise is resolved
-          ans.status = clientResponse.statusCode; // 2xx -ok response, 4xx -client error (bad request), 5xx -server error
-          ans.statusMessage = clientResponse.statusMessage;
-          ans.httpVersion = clientResponse.httpVersion;
-          ans.gzip = gzip;
-          ans.res.headers = clientResponse.headers;
-          ans.res.content = content;
-          ans.time.res = this._getTime();
-          ans.time.duration = this._getTimeDiff(ans.time.req, ans.time.res);
-          resolve(ans);
+          const answer = { ...answer_proto }; // clone object to prevent overwrite of object properies once promise is resolved
+          answer.requestURL = url;
+          answer.status = clientResponse.statusCode; // 2xx -ok response, 4xx -client error (bad request), 5xx -server error
+          answer.statusMessage = clientResponse.statusMessage;
+          answer.httpVersion = clientResponse.httpVersion;
+          answer.gzip = gzip;
+          answer.https = /^https/.test(this.protocol);
+          answer.req.query = this._toQueryObject(this.queryString); // from ?a=sasa&b=2 => {a:'sasa', b:2}
+          answer.req.headers = this.headers;
+          answer.req.payload = body_obj;
+          answer.res.headers = clientResponse.headers;
+          answer.res.content = content;
+          answer.time.res = this._getTime();
+          answer.time.duration = this._getTimeDiff(answer.time.req, answer.time.res);
+          resolve(answer);
 
           this._killAgent(agent);
         };
@@ -434,41 +437,39 @@ class HttpClient {
       });
 
 
-      /*** 3.B) on timeout (no response from the server) ***/
+      /** 3.B) on timeout (no response from the server) **/
       clientRequest.setTimeout(this.opts.timeout);
       clientRequest.on('timeout', () => {
         this._killAgent(agent);
 
         // format answer
-        const ans = { ...answer }; // clone object to prevent overwrite of object properies once promise is resolved
-        ans.status = 408; // 408 - timeout
-        ans.statusMessage = `Request aborted due to timeout (${this.opts.timeout} ms) ${url} `;
-        ans.time.res = this._getTime();
-        ans.time.duration = this._getTimeDiff(ans.time.req, ans.time.res);
+        const answer = { ...answer_proto }; // clone object to prevent overwrite of object properies once promise is resolved
+        answer.status = 408; // 408 - timeout
+        answer.statusMessage = `Request aborted due to timeout (${this.opts.timeout} ms) ${url} `;
+        answer.time.res = this._getTime();
+        answer.time.duration = this._getTimeDiff(answer.time.req, answer.time.res);
 
-        resolve(ans);
+        resolve(answer);
       });
 
 
-      /*** 3.C) on error (only if promise is not resolve by timeout - prevent resolving twice)***/
+      /** 3.C) on error (only if promise is not resolved by timeout - prevent double resolving) **/
       clientRequest.on('error', error => {
         this._killAgent(agent);
         const err = this._formatError(error, url);
 
         // format answer
-        const ans = { ...answer }; // clone object to prevent overwrite of object properies once promise is resolved
-        ans.status = err.status;
-        ans.statusMessage = err.message;
-        ans.time.res = this._getTime();
-        ans.time.duration = this._getTimeDiff(ans.time.req, ans.time.res);
+        const answer = { ...answer_proto }; // clone object to prevent overwrite of object properies once promise is resolved
+        answer.status = err.status;
+        answer.statusMessage = err.message;
+        answer.time.res = this._getTime();
+        answer.time.duration = this._getTimeDiff(answer.time.req, answer.time.res);
 
-        // do not resolve if it's already resolved by timeout
-        resolve(ans);
+        resolve(answer);
       });
 
-
-
     });
+
 
     /*** 4) finish with sending request */
     clientRequest.end();
@@ -572,25 +573,31 @@ class HttpClient {
     const requestLib = this._selectRequest();
 
     /*** 1) init HTTP request ***/
-    const requestOpts = {
-      agent,
-      hostname: this.hostname,
-      port: this.port,
-      path: this.pathname + this.queryString,
-      method,
-      headers: this.headers
-    };
-
     let clientRequest;
     if (/GET/i.test(method)) {  // GET  - no body
+      this.delHeaders(['content-length']);
+      const requestOpts = {
+        agent,
+        hostname: this.hostname,
+        port: this.port,
+        path: this.pathname + this.queryString,
+        method,
+        headers: this.headers
+      };
       clientRequest = requestLib(requestOpts);
 
     } else { // POST, PUT, DELETE, ... - with body
       const body_str = JSON.stringify(body_obj);
       const contentLength = Buffer.byteLength(body_str, this.opts.encoding);
-      this.headers['content-length'] = contentLength;
-      requestOpts.headers['content-length'] = contentLength;
-
+      this.setHeader('content-length', contentLength);
+      const requestOpts = {
+        agent,
+        hostname: this.hostname,
+        port: this.port,
+        path: this.pathname + this.queryString,
+        method,
+        headers: this.headers
+      };
       clientRequest = requestLib(requestOpts);
       clientRequest.write(body_str, this.opts.encoding);
     }
@@ -601,6 +608,7 @@ class HttpClient {
       });
 
       clientRequest.setTimeout(this.opts.timeout);
+
       clientRequest.on('timeout', () => {
         this._killAgent(agent);
         reject(new Error(`The timeout after ${this.opts.timeout} ms`));
