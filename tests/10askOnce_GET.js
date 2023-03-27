@@ -2,6 +2,7 @@
  * $ node 10askOnce_GET.js <url>
  * $ node 10askOnce_GET.js http://www.adsuu.com?x=ča
  * $ node 10askOnce_GET.js http://api.dex8.com?x=ča
+ * $ node 10askOnce_GET.js https://www.dex8.com/products/robots
  */
 const util = require('util');
 const HttpClient = require('../HttpClient.js');

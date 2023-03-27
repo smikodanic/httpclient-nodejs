@@ -1,6 +1,7 @@
 /**
  * $ node 01paresUrl.js <url>
- * $ node 01parseUrl.js http://aduu.com?x=22
+ * $ node 01parseUrl.js http://adsuu.com?x=22
+ * $ node 01parseUrl.js http://localhost:8001/test?x=22
  */
 
 const HttpClient = require('../HttpClient.js');
@@ -21,6 +22,7 @@ console.log('httpClient.url:: ', httpClient.url); // http://localhost:8001/www/p
 console.log('httpClient.protocol:: ', httpClient.protocol); // http:
 console.log('httpClient.hostname:: ', httpClient.hostname); // localhost
 console.log('httpClient.port:: ', httpClient.port); // 8001
+console.log('httpClient.host:: ', httpClient.host); // localhost:8001
 console.log('httpClient.pathname:: ', httpClient.pathname); // /www/products
 console.log('httpClient.queryString:: ', httpClient.queryString); // ?category=databases
 
