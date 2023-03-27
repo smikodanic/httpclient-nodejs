@@ -5,6 +5,7 @@ const http = require('http');
 const https = require('https');
 const url_node = require('url');
 const zlib = require('zlib');
+const util = require('util');
 const pkg_json = require('./package.json');
 
 
@@ -16,12 +17,14 @@ class HttpClient {
    */
   constructor(opts, proxyAgent) {
     this.url;
-    this.protocol = 'http:';
-    this.hostname = '';
-    this.port = 80;
-    this.pathname = '/';
-    this.queryString = '';
+    this.protocol;
+    this.hostname;
+    this.port;
+    this.host;
+    this.pathname;
+    this.queryString;
     this.queryObject = {};
+    this.isHttps;
 
     if (!opts || (!!opts && !Object.keys(opts).length)) {
       this.opts = {
@@ -33,11 +36,9 @@ class HttpClient {
         retryDelay: 5500,
         maxRedirects: 3,
         headers: {
-          'authorization': '',
           'user-agent': `HttpClient-NodeJS/${pkg_json.version} https://github.com/smikodanic/httpclient-nodejs`, // 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'
           'accept': '*/*', // 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9'
           'cache-control': 'no-cache',
-          'host': '',
           'accept-encoding': 'gzip',
           'connection': 'close', // keep-alive
           'content-type': 'text/html; charset=UTF-8'
@@ -51,11 +52,9 @@ class HttpClient {
       this.opts.retryDelay = this.opts.retryDelay || 5500;
       this.opts.maxRedirects = this.opts.maxRedirects || 3;
       this.opts.headers = this.opts.headers || {
-        'authorization': '',
         'user-agent': `HttpClient-NodeJS/${pkg_json.version} https://github.com/smikodanic/httpclient-nodejs`, // 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'
         'accept': '*/*', // 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9'
         'cache-control': 'no-cache',
-        'host': '',
         'accept-encoding': 'gzip',
         'connection': 'close', // keep-alive
         'content-type': 'text/html; charset=UTF-8'
@@ -84,9 +83,11 @@ class HttpClient {
     this.protocol = urlObj.protocol;
     this.hostname = urlObj.hostname;
     this.port = urlObj.port;
+    this.host = urlObj.host;
     this.pathname = urlObj.pathname;
     this.queryString = urlObj.search;
     this.queryObject = urlObj.searchParams;
+    this.isHttps = /^https/.test(this.protocol);
 
     // debug
     if (this.opts.debug) {
@@ -94,6 +95,7 @@ class HttpClient {
       console.log('this.protocol:: ', this.protocol); // http:
       console.log('this.hostname:: ', this.hostname); // localhost
       console.log('this.port:: ', this.port); // 8001
+      console.log('this.host:: ', this.host); // localhost:8001
       console.log('this.pathname:: ', this.pathname); // /www/products
       console.log('this.queryString:: ', this.queryString); // ?category=mačke
       console.log('this.queryObject:: ', this.queryObject); // { 'category' => 'mačke' }
@@ -156,7 +158,6 @@ class HttpClient {
   }
 
 
-
   /**
    * Create query object from query string.
    * @param  {string} queryString - x=abc&y=123&z=true
@@ -186,12 +187,7 @@ class HttpClient {
    * Choose http or https NodeJS libraries.
    */
   _selectRequest() {
-    let requestLib;
-    if (/^https/.test(this.protocol)) {
-      requestLib = https.request.bind(https);
-    } else {
-      requestLib = http.request.bind(http);
-    }
+    const requestLib = this.isHttps ? https.request.bind(https) : http.request.bind(http);
     return requestLib;
   }
 
@@ -212,7 +208,7 @@ class HttpClient {
 
     let agent;
     if (!!this.proxyAgent) { agent = this.proxyAgent; }
-    else { agent = /^https/.test(this.protocol) ? new https.Agent(options) : new http.Agent(options); }
+    else { agent = this.isHttps ? new https.Agent(options) : new http.Agent(options); }
 
     return agent;
   }
@@ -301,13 +297,14 @@ class HttpClient {
       statusMessage: '',
       httpVersion: undefined,
       gzip: false,
-      https: false,
+      https: undefined,
       // remoteAddress: // TODO
       // referrerPolicy: // TODO
       req: {
         query: {},
         headers: undefined,
-        payload: undefined
+        payload: undefined,
+        requestOpts: undefined
       },
       res: {
         headers: undefined,
@@ -320,9 +317,6 @@ class HttpClient {
       }
     };
 
-
-    const agent = this._hireAgent(this.opts);
-    const requestLib = this._selectRequest();
 
 
     /*** 1) check and correct URL ***/
@@ -339,31 +333,27 @@ class HttpClient {
 
 
     /*** 2) init HTTP request  [http.request() options https://nodejs.org/api/http.html#http_http_request_url_options_callback] ***/
+    const requestLib = this._selectRequest();
+    const agent = this._hireAgent(this.opts);
+    const requestOpts = {
+      agent,
+      hostname: this.hostname,
+      port: this.port ? this.port : this.isHttps ? 443 : 80,
+      host: this.host,
+      path: this.pathname + this.queryString,
+      method,
+      headers: this.headers
+    };
+
     let clientRequest;
     if (/GET/i.test(method)) {  // GET  - no body
       this.delHeaders(['content-length']);
-      const requestOpts = {
-        agent,
-        hostname: this.hostname,
-        port: this.port,
-        path: this.pathname + this.queryString,
-        method,
-        headers: this.headers
-      };
       clientRequest = requestLib(requestOpts);
 
     } else { // POST, PUT, DELETE, ... - with body
       const body_str = JSON.stringify(body_obj);
       const contentLength = Buffer.byteLength(body_str, this.opts.encoding);
       this.setHeader('content-length', contentLength);
-      const requestOpts = {
-        agent,
-        hostname: this.hostname,
-        port: this.port,
-        path: this.pathname + this.queryString,
-        method,
-        headers: this.headers
-      };
       clientRequest = requestLib(requestOpts);
       clientRequest.write(body_str, this.opts.encoding);
     }
@@ -383,22 +373,17 @@ class HttpClient {
 
         const resolveAnswer = () => {
           // concat buffer parts
-          const buf = Buffer.concat(buf_chunks);
+          let buf = Buffer.concat(buf_chunks);
 
           // decompress
           let gzip = false;
-          let gunziped = buf;
           if (!!clientResponse.headers['content-encoding'] && clientResponse.headers['content-encoding'] === 'gzip') {
-            try {
-              gunziped = zlib.gunzipSync(buf);
-            } catch (err) {
-
-            }
             gzip = true;
+            buf = zlib.gunzipSync(buf);
           }
 
           // convert buffer to string
-          let content = gunziped.toString(this.opts.encoding);
+          let content = buf.toString(this.opts.encoding);
 
           // convert string to object if content is in JSON format
           let contentObj;
@@ -414,10 +399,11 @@ class HttpClient {
           answer.statusMessage = clientResponse.statusMessage;
           answer.httpVersion = clientResponse.httpVersion;
           answer.gzip = gzip;
-          answer.https = /^https/.test(this.protocol);
+          answer.https = this.isHttps;
           answer.req.query = this._toQueryObject(this.queryString); // from ?a=sasa&b=2 => {a:'sasa', b:2}
           answer.req.headers = this.headers;
           answer.req.payload = body_obj;
+          answer.req.requestOpts = requestOpts;
           answer.res.headers = clientResponse.headers;
           answer.res.content = content;
           answer.time.res = this._getTime();
@@ -568,36 +554,36 @@ class HttpClient {
    * @returns {Promise<{clientrequest:Stream, clientResponse:Stream}>}
    */
   grabStreams(url, method = 'GET', body_obj) {
-    url = this._parseUrl(url);
-    const agent = this._hireAgent(this.opts);
-    const requestLib = this._selectRequest();
+    /*** 1) check and correct URL ***/
+    try {
+      url = this._parseUrl(url);
+    } catch (err) {
+      console.log(err);
+      return;
+    }
 
-    /*** 1) init HTTP request ***/
+    /*** 2) init HTTP request ***/
+    const requestLib = this._selectRequest();
+    const agent = this._hireAgent(this.opts);
+    const requestOpts = {
+      agent,
+      hostname: this.hostname,
+      port: this.port ? this.port : this.isHttps ? 443 : 80,
+      host: this.host,
+      path: this.pathname + this.queryString,
+      method,
+      headers: this.headers
+    };
+
     let clientRequest;
     if (/GET/i.test(method)) {  // GET  - no body
       this.delHeaders(['content-length']);
-      const requestOpts = {
-        agent,
-        hostname: this.hostname,
-        port: this.port,
-        path: this.pathname + this.queryString,
-        method,
-        headers: this.headers
-      };
       clientRequest = requestLib(requestOpts);
 
     } else { // POST, PUT, DELETE, ... - with body
       const body_str = JSON.stringify(body_obj);
       const contentLength = Buffer.byteLength(body_str, this.opts.encoding);
       this.setHeader('content-length', contentLength);
-      const requestOpts = {
-        agent,
-        hostname: this.hostname,
-        port: this.port,
-        path: this.pathname + this.queryString,
-        method,
-        headers: this.headers
-      };
       clientRequest = requestLib(requestOpts);
       clientRequest.write(body_str, this.opts.encoding);
     }
@@ -628,7 +614,7 @@ class HttpClient {
 
 
 
-  /********** HEADERS *********/
+  /********** REQUEST HEADERS *********/
   /**
    * Change header object.
    * Previously defined this.headers properties will be overwritten.
@@ -682,6 +668,30 @@ class HttpClient {
     });
   }
 
+
+
+  /********** MISC *********/
+  /**
+   * Print the object to the console.
+   * @param {object} obj
+   */
+  print(obj) {
+    const opts = {
+      showHidden: false,
+      depth: 5,
+      colors: true,
+      customInspect: true,
+      showProxy: false,
+      maxArrayLength: 10,
+      maxStringLength: 350,
+      breakLength: 80,
+      compact: false,
+      sorted: false,
+      getters: false,
+      numericSeparator: false
+    };
+    console.log(util.inspect(obj, opts));
+  }
 
 
 }
