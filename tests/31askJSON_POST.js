@@ -25,6 +25,7 @@ const getJSON = async () => {
       'connection': 'close', // keep-alive
       'content-type': 'text/html; charset=UTF-8'
     },
+    decompress: false,
     debug: false
   };
 

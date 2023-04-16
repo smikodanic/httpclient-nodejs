@@ -32,16 +32,7 @@ proxyServer.on('request', async (proxyServer_req, proxyServer_res) => {
   headers.host = urlObj.host;
 
   // forward request to original host
-  const opts = {
-    encodeURI: false,
-    encoding: 'utf8',
-    timeout: 8000,
-    retry: 0,
-    retryDelay: 5500,
-    maxRedirects: 0,
-    headers,
-    debug: false
-  };
+  const opts = {};
   const hcn = new HttpClient(opts);
 
   // get request & response to origserver as stream objects

@@ -12,7 +12,7 @@ const pkg_json = require('./package.json');
 class HttpClient {
 
   /**
-   * @param {object} opts - HTTP Client options {encodeURI, timeout, retry, retryDelay, maxRedirects, headers}
+   * @param {object} opts - HTTP Client options {encodeURI, timeout, retry, retryDelay, maxRedirects, headers, decompress}
    * @param {object} proxyAgent - proxy agent (https://www.npmjs.com/package/https-proxy-agent)
    */
   constructor(opts, proxyAgent) {
@@ -28,7 +28,6 @@ class HttpClient {
 
     if (!opts || (!!opts && !Object.keys(opts).length)) {
       this.opts = {
-        debug: false, // show debug messages
         encodeURI: false,
         encoding: 'utf8', // use 'binary' for PDF files, and revert it to buffer with Buffer.from(answer.res.content, 'binary')
         timeout: 8000,
@@ -42,7 +41,9 @@ class HttpClient {
           'accept-encoding': 'gzip',
           'connection': 'close', // keep-alive
           'content-type': 'text/html; charset=UTF-8'
-        }
+        },
+        decompress: false, // decompress gzip or deflate
+        debug: false, // show debug messages
       };
     } else {
       this.opts = opts;
@@ -296,7 +297,7 @@ class HttpClient {
       status: 0,
       statusMessage: '',
       httpVersion: undefined,
-      gzip: false,
+      decompressed: false,
       https: undefined,
       // remoteAddress: // TODO
       // referrerPolicy: // TODO
@@ -376,10 +377,18 @@ class HttpClient {
           let buf = Buffer.concat(buf_chunks);
 
           // decompress
-          let gzip = false;
-          if (!!clientResponse.headers['content-encoding'] && clientResponse.headers['content-encoding'] === 'gzip') {
-            gzip = true;
-            buf = zlib.gunzipSync(buf);
+          let decompressed = false; // gzip or deflate
+          const isResponseGzip = !!clientResponse.headers['content-encoding'] && clientResponse.headers['content-encoding'] === 'gzip';
+          const isResponseDeflate = !!clientResponse.headers['content-encoding'] && clientResponse.headers['content-encoding'] === 'deflate';
+          if (isResponseGzip) {
+            decompressed = true;
+            buf = zlib.gunzipSync(buf); // decompress gzip
+          } else if (isResponseDeflate) {
+            decompressed = true;
+            buf = zlib.inflateSync(buf); // decompress deflate
+          } else if (this.opts.decompress) {
+            decompressed = true;
+            buf = zlib.unzipSync(buf); // decompress gzip or deflate
           }
 
           // convert buffer to string
@@ -398,7 +407,7 @@ class HttpClient {
           answer.status = clientResponse.statusCode; // 2xx -ok response, 4xx -client error (bad request), 5xx -server error
           answer.statusMessage = clientResponse.statusMessage;
           answer.httpVersion = clientResponse.httpVersion;
-          answer.gzip = gzip;
+          answer.decompressed = decompressed;
           answer.https = this.isHttps;
           answer.req.query = this._toQueryObject(this.queryString); // from ?a=sasa&b=2 => {a:'sasa', b:2}
           answer.req.headers = this.headers;
