@@ -413,6 +413,7 @@ class HttpClient {
           answer.req.headers = this.headers;
           answer.req.payload = body_obj;
           answer.req.requestOpts = requestOpts;
+          delete answer.req.requestOpts.agent; // because it has circular object
           answer.res.headers = clientResponse.headers;
           answer.res.content = content;
           answer.time.res = this._getTime();
