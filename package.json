@@ -1,6 +1,6 @@
 {
   "name": "httpclient-nodejs",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "title": "HTTP Client - NodeJS",
   "description": "Simple but powerful HTTP client for NodeJS.",
   "keywords": [
