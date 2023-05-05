@@ -303,7 +303,7 @@ class HttpClient {
       // referrerPolicy: // TODO
       req: {
         query: {},
-        headers: undefined,
+        headers: this.headers,
         payload: undefined,
         requestOpts: undefined
       },
