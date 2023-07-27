@@ -43,6 +43,7 @@ class HttpClient {
           'content-type': 'text/html; charset=UTF-8'
         },
         decompress: false, // decompress gzip or deflate
+        bufferResponse: false, // Get answer.res.content as buffer. The buffer content can be used in FormData: const fd = new Formdata(); fd.append('file', answer.res.content)
         debug: false, // show debug messages
       };
     } else {
@@ -392,14 +393,13 @@ class HttpClient {
           }
 
           // convert buffer to string
-          let content = buf.toString(this.opts.encoding);
+          let content;
+          if (this.opts.bufferResponse) {
+            content = buf; // when the URL is file
+          } else {
+            content = buf.toString(this.opts.encoding);
+          }
 
-          // convert string to object if content is in JSON format
-          let contentObj;
-          try {
-            contentObj = JSON.parse(content);
-            if (!!contentObj) { content = contentObj; }
-          } catch (err) { }
 
           // format answer
           const answer = { ...answer_proto }; // clone object to prevent overwrite of object properies once promise is resolved
@@ -550,6 +550,15 @@ class HttpClient {
     });
 
     const answer = await this.askOnce(url, method, body_obj);
+
+    // convert string to object if the content has valid JSON format
+    try {
+      const contentObj = JSON.parse(answer.res.content);
+      if (!!contentObj) { answer.res.content = contentObj; }
+    } catch (err) {
+      console.log(`The answer has invalid JSON: ${answer.res.content}`);
+    }
+
     return answer;
   }
 

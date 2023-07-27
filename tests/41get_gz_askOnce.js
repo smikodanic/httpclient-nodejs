@@ -26,6 +26,7 @@ const getGZ = async () => {
         'content-type': 'text/html; charset=UTF-8'
       },
       decompress: true, // MUST BE SET TO true !
+      bufferResponse: false,
       debug: false
     };
     const hcn = new HttpClient(opts); //  http client instance

@@ -19,6 +19,7 @@ const getJSON = async () => {
     maxRedirects: 0,
     // headers,
     decompress: false,
+    bufferResponse: false,
     debug: false
   };
 
